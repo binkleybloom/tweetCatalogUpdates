@@ -8,7 +8,7 @@
 #
 #################################
 
-import os, plistlib, tweepy, datetime
+import os, plistlib, tweepy, datetime, sys
 
 #========== Modify to match your environment ===========#
 
@@ -20,6 +20,11 @@ ckey = ''
 csecret = ''
 atok = ''
 asecret = ''
+
+### Set armed to True to send tweets. Otherwise, tweet contents will be written
+### to stout.
+
+armed = False
 
 #============ Do not modify below this line ============#
 
@@ -105,9 +110,9 @@ def compareCatalogs():
 def tweetMove(moves):
 # walk through list of moves, and create tweets for each item in list.
 
-    for each move in moves:
+    for twout in moves:
         # put the mm/dd/yy date at the beginning of the tweet
-        tweetbuild = [datetime.date.today().strftime("%m/%d/%y"), "-", move]
+        tweetbuild = [datetime.date.today().strftime("%m/%d/%y"), "-", twout]
         tweet = ' '.join(tweetbuild)
         api.update_status(tweet)
 
@@ -120,7 +125,11 @@ if not os.path.isfile(cached_file):
 
 # check if any announcable updates - tweet if there are.
 if (updated):
-    tweetMove(moves)
+    if (armed):
+        tweetMove(moves)
+    else:
+        for twout in moves:
+            print twout
 
 # update the cache file at the end of each run.
 updateCached()
