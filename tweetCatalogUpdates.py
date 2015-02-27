@@ -5,10 +5,11 @@
 # Written by Tim Schutt - taschutt@syr.edu
 #
 # November, 2014
+# Updates applied March, 2015
 #
 #################################
 
-import os, plistlib, tweepy, datetime, sys
+import os, plistlib, tweepy, datetime, sys, subprocess, shutil, shlex, hashlib
 
 #========== Modify to match your environment ===========#
 
@@ -37,33 +38,37 @@ auth = tweepy.OAuthHandler(ckey, csecret)
 auth.secure = True
 auth.set_access_token(atok, asecret)
 api = tweepy.API(auth)
+updated = False
 
 def updateCached():
-# updates/creates a snapshot of the state of your repo in a local cache file
-# consisting of name, version and catalog listing for each item.
+# copies current 'all' catalog to local cached file
 
-    # read the "all" catalog from your repository to a dictionary
-    catalogitems = plistlib.readPlist(all_items_path)
+    shutil.copy(all_items_path, cached_file)
 
-    currentResults = []
+def checkHashes():
+    # generate sha256 hashes for original and chached files to compare for changes
 
-    # walk through it item by item
-    for item in catalogitems:
-        name = item.get('name')
-        version = item.get('version')
-        catalogs = item.get('catalogs')
+    hashed_origin = hashlib.sha256()
+    hashed_cached = hashlib.sha256()
 
-        # insert each item's data into a list as a dictionary
-        merged = {'name':name, 'version':version, 'catalogs':catalogs}
-        currentResults.append(merged)
+    with open(all_items_path, 'rb') as afile:
+        buf = afile.read()
+        hashed_origin.update(buf)
 
-    # write it out to a file
-    plistlib.writePlist(currentResults, cached_file)
+    with open(cached_file, 'rb') as cfile:
+        cbuf = cfile.read()
+        hashed_cached.update(cbuf)
+
+    if ((hashed_origin.hexdigest()) == (hashed_cached.hexdigest())):
+        update = True
+    else:
+        update = False
+
 
 def compareCatalogs():
 # reads the "all" catalog from your repo, and compares it against the last
 # cached snapshot.
-
+    update = False
     # read in the "all" catalog from the repo
     current = plistlib.readPlist(all_items_path)
 
@@ -72,9 +77,6 @@ def compareCatalogs():
 
     # set up the list to store any move details
     global response
-
-    # no item catalog changes have happened yet
-    update = False
 
     # walk through the items in the current 'all' catalog
     for item in current:
@@ -116,6 +118,10 @@ def tweetMove(moves):
         tweet = ' '.join(tweetbuild)
         api.update_status(tweet)
 
+# run makecatalogs to ensure that everything is fine-n-dandy before starting
+
+subprocess.call(['/usr/local/munki/makecatalogs', munki_root])
+
 # test if the cache file exists, and create it before comparing against it if not.
 if not os.path.isfile(cached_file):
     print "Generating catalog cache file from current state of respository."
@@ -130,6 +136,4 @@ if (updated):
     else:
         for twout in moves:
             print twout
-
-# update the cache file at the end of each run.
-updateCached()
+    updateCached()
